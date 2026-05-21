@@ -77,6 +77,16 @@ async def cmd_start(message: Message):
         "/balance - show balance\n"
         "/config - show balance, PnL & ROE\n"
         "/positions - open positions\n"
+        "/positions long - show only long positions\n"
+        "/positions short - show only short positions\n"
+        "/positions profit - show only profitable positions\n"
+        "/positions loss - show only loss positions\n"
+        "/close all - close all positions\n"
+        "/close long - close all long positions\n"
+        "/close short - close all short positions\n"
+        "/close profit - close all profitable positions\n"
+        "/close loss - close all loss positions\n"
+        "/close 'symbol' - close specific position\n"
         "/ticker &lt;symbol&gt; - asset price (e.g., /ticker BTCUSDT)\n"
         "/buy &lt;symbol&gt; &lt;amount&gt; - buy (for example, /buy BTCUSDT 0.001)\n"
         "/sell &lt;symbol&gt; &lt;amount&gt; - sell (for example, /sell BTCUSDT 0.001)"
@@ -101,18 +111,6 @@ async def cmd_balance(message: Message):
     )
 
 
-@router.message(Command("positions"))
-async def cmd_positions(message: Message):
-    """Handle /positions command"""
-    service = BybitService()
-    positions = service.get_positions()
-
-    if not positions:
-        await message.answer("⚠️ There are no open positions")
-        return
-
-    # TODO: Implement proper position display
-    await message.answer(f"📋 Open positions: {len(positions)} pcs.")
 
 
 @router.message(Command("ticker"))

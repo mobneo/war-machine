@@ -118,3 +118,48 @@ class BybitService:
         all_symbols = list(self.exchange.markets.keys())
         futures_symbols = [s for s in all_symbols if 'USDT' in s or 'USDC' in s]
         return futures_symbols
+
+    def close_position(self, symbol: str, amount: Optional[float] = None) -> Dict[str, Any]:
+        """Close a position for a symbol. If amount is provided, close partial position."""
+        try:
+            positions = self.get_positions(symbol)
+            if not positions:
+                return {'error': f'No open position for {symbol}'}
+
+            position = positions[0]
+            side = 'sell' if position['side'] == 'long' else 'buy'
+
+            # If amount not specified, close full position
+            close_amount = amount if amount is not None else position['size']
+
+            # Use reduce_only to close position
+            params = {'reduceOnly': True}
+            order = self.exchange.create_market_order(
+                symbol.upper(), side, close_amount, None, params
+            )
+            return self._parse_order_result(order)
+        except Exception as e:
+            return {'error': str(e)}
+
+    def _parse_order_result(self, order: Dict[str, Any]) -> Dict[str, Any]:
+        """Parse order result to common format"""
+        try:
+            return {
+                'id': order.get('id'),
+                'client_order_id': order.get('clientOrderId'),
+                'symbol': order.get('symbol'),
+                'side': order.get('side'),
+                'order_type': order.get('type'),
+                'status': order.get('status'),
+                'amount': order.get('amount'),
+                'filled': order.get('filled', 0),
+                'remaining': order.get('remaining', order.get('amount')),
+                'price': order.get('price'),
+                'stop_price': order.get('stopPrice'),
+                'trigger_price': order.get('triggerPrice'),
+                'trailing_price': order.get('trailingPrice'),
+                'reduce_only': order.get('reduceOnly', False),
+                'created_at': order.get('timestamp'),
+            }
+        except Exception:
+            return order
