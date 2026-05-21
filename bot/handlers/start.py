@@ -1,6 +1,6 @@
 from aiogram import Router
 from aiogram.types import Message
-from aiogram.filters import Command
+from aiogram.filters import Command, CommandObject
 
 from bot.services.bybit_service import BybitService
 
@@ -54,9 +54,9 @@ async def cmd_positions(message: Message):
 
 
 @router.message(Command("ticker"))
-async def cmd_ticker(message: Message):
+async def cmd_ticker(message: Message, command: CommandObject):
     """Handle /ticker <symbol> command"""
-    symbol = message.get_args().strip().upper()
+    symbol = command.args.strip().upper() if command.args else None
 
     if not symbol:
         await message.answer("⚠️ Enter a symbol: /ticker BTCUSDT")
@@ -75,17 +75,17 @@ async def cmd_ticker(message: Message):
 
     await message.answer(
         f"📊 {symbol}:\n"
-        f" last: {ticker['last']:.2f}\n"
-        f" bid: {ticker['bid']:.2f}\n"
-        f" ask: {ticker['ask']:.2f}\n"
-        f" volume: {ticker['volume']:.4f}"
+        f" last: {ticker['last']}\n"
+        f" bid: {ticker['bid']}\n"
+        f" ask: {ticker['ask']}\n"
+        f" volume: {ticker['volume']}"
     )
 
 
 @router.message(Command("buy"))
-async def cmd_buy(message: Message):
+async def cmd_buy(message: Message, command: CommandObject):
     """Handle /buy <symbol> <amount> command"""
-    args = message.get_args().strip().split()
+    args = command.args.strip().split() if command.args else ""
 
     if len(args) != 2:
         await message.answer("⚠️ Usage: /buy <symbol> <amount>")
@@ -116,9 +116,9 @@ async def cmd_buy(message: Message):
 
 
 @router.message(Command("sell"))
-async def cmd_sell(message: Message):
+async def cmd_sell(message: Message, command: CommandObject):
     """Handle /sell <symbol> <amount> command"""
-    args = message.get_args().strip().split()
+    args = command.args.strip().split() if command.args else ""
 
     if len(args) != 2:
         await message.answer("⚠️ Usage: /sell <symbol> <amount>")

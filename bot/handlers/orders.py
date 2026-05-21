@@ -1,6 +1,6 @@
 from aiogram import Router
 from aiogram.types import Message
-from aiogram.filters import Command
+from aiogram.filters import Command, CommandObject
 
 from bot.services.orders import OrderService
 
@@ -8,9 +8,9 @@ router = Router()
 
 
 @router.message(Command("buy"))
-async def cmd_buy(message: Message):
+async def cmd_buy(message: Message, command: CommandObject):
     """Handle /buy <symbol> <amount> command"""
-    args = message.get_args().strip().split()
+    args = command.args.strip().split() if command.args else ""
 
     if len(args) != 2:
         await message.answer("⚠️ Usage: /buy <symbol> <amount>")
@@ -41,9 +41,10 @@ async def cmd_buy(message: Message):
 
 
 @router.message(Command("sell"))
-async def cmd_sell(message: Message):
+async def cmd_sell(message: Message, command: CommandObject):
     """Handle /sell <symbol> <amount> command"""
-    args = message.get_args().strip().split()
+    # args = message.get_args().strip().split()
+    args = command.args.strip().split() if command.args else ""
 
     if len(args) != 2:
         await message.answer("⚠️ Usage: /sell <symbol> <amount>")
@@ -75,14 +76,15 @@ async def cmd_sell(message: Message):
 
 # Stop-Loss commands
 @router.message(Command("sl"))
-async def cmd_stop_loss(message: Message):
+async def cmd_stop_loss(message: Message, command: CommandObject):
     """Handle stop-loss orders
     Usage: /sl <symbol> <amount> <stop_price> [limit_price]
     Examples:
         /sl BTCUSDT 0.001 50000 - market stop-loss
         /sl BTCUSDT 0.001 50000 49500 - limit stop-loss
     """
-    args = message.get_args().strip().split()
+    # args = message.get_args().strip().split()
+    args = command.args.strip().split() if command.args else ""
 
     if len(args) < 3:
         await message.answer(
@@ -132,14 +134,15 @@ async def cmd_stop_loss(message: Message):
 
 # Take-Profit commands
 @router.message(Command("tp"))
-async def cmd_take_profit(message: Message):
+async def cmd_take_profit(message: Message, command: CommandObject):
     """Handle take-profit orders
     Usage: /tp <symbol> <amount> <trigger_price> [limit_price]
     Examples:
         /tp BTCUSDT 0.001 60000 - market take-profit
         /tp BTCUSDT 0.001 60000 60500 - limit take-profit
     """
-    args = message.get_args().strip().split()
+    # args = message.get_args().strip().split()
+    args = command.args.strip().split() if command.args else ""
 
     if len(args) < 3:
         await message.answer(
@@ -189,7 +192,7 @@ async def cmd_take_profit(message: Message):
 
 # Trailing Stop commands
 @router.message(Command("trailing"))
-async def cmd_trailing_stop(message: Message):
+async def cmd_trailing_stop(message: Message, command: CommandObject):
     """Handle trailing-stop orders
     Usage: /trailing <symbol> <amount> <trailing_distance> [limit_price]
     Trailing distance in % (e.g., 1 = 1%)
@@ -197,7 +200,7 @@ async def cmd_trailing_stop(message: Message):
         /trailing BTCUSDT 0.001 1 - trailing stop with 1% distance, market order
         /trailing BTCUSDT 0.001 1 59000 - limit trailing stop
     """
-    args = message.get_args().strip().split()
+    args = command.args.strip().split() if command.args else ""
 
     if len(args) < 3:
         await message.answer(
@@ -249,11 +252,11 @@ async def cmd_trailing_stop(message: Message):
 
 # Order management commands
 @router.message(Command("cancel"))
-async def cmd_cancel(message: Message):
+async def cmd_cancel(message: Message, command: CommandObject):
     """Cancel an order
     Usage: /cancel <symbol> <order_id>
     """
-    args = message.get_args().strip().split()
+    args = command.args.strip().split() if command.args else ""
 
     if len(args) != 2:
         await message.answer("⚠️ Usage: /cancel <symbol> <order_id>")

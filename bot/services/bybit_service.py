@@ -5,13 +5,6 @@ from config import settings
 
 class BybitService:
     def __init__(self):
-        # self.exchange = ccxt.bybit({
-        #     'apiKey': settings.bybit_api_key,
-        #     'secret': settings.bybit_secret_key,
-        #     'options': {
-        #         'testnet': settings.bybit_testnet,
-        #     },
-        # })
         self.exchange = ccxt.bybit({
             'apiKey': settings.bybit_api_key or "",
             'secret': settings.bybit_secret_key or "",
