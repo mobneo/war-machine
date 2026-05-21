@@ -16,12 +16,8 @@ A futures trading bot for managing Bybit futures accounts via Telegram.
 git clone <repo-url>
 cd war-machine
 
-# Create a virtual environment
-python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
-
-# Install dependencies
-pip install -r requirements.txt
+# Install dependencies with Poetry
+poetry install
 
 # Create a .env file based on .env.example
 cp .env.example .env
@@ -42,7 +38,7 @@ BYBIT_TESTNET=true  # false for mainnet
 
 ```bash
 # Launch the bot
-python bot/main.py
+poetry run python bot/main.py
 ```
 
 ### Available commands
@@ -67,5 +63,5 @@ war-machine/
 │   └── utils/           # Utilities
 ├── config/
 │   └── settings.py      # Configuration
-└── requirements.txt
+└── pyproject.toml
 ```
