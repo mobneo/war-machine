@@ -11,7 +11,7 @@ from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 
 from config import settings
-from bot.handlers import start
+from bot.handlers import router
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -32,7 +32,7 @@ async def main():
     dp = Dispatcher()
 
     # Register routers
-    dp.include_router(start.router)
+    dp.include_router(router)
 
     # Start polling
     await bot.delete_webhook(drop_pending_updates=True)

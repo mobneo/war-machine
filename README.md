@@ -52,6 +52,16 @@ poetry run python bot/main.py
 | `/buy <symbol> <amount>` | Buy (for example, `/buy BTCUSDT 0.001`) |
 | `/sell <symbol> <amount>` | Sell (for example, `/sell BTCUSDT 0.001`) |
 
+### Advanced orders
+
+| Command | Description |
+|---------|----------|
+| `/sl <symbol> <amount> <stop_price> [limit_price]` | Stop-loss order |
+| `/tp <symbol> <amount> <trigger_price> [limit_price]` | Take-profit order |
+| `/trailing <symbol> <amount> <distance%> [limit_price]` | Trailing-stop order |
+| `/cancel <symbol> <order_id>` | Cancel order |
+| `/orders` | Show open orders |
+
 ## Project Structure
 
 ```
@@ -59,7 +69,11 @@ war-machine/
 ├── bot/
 │   ├── main.py          # Entry point
 │   ├── handlers/        # Telegram command handlers
-│   ├── services/        # Business logic (Bybit API)
+│   │   ├── start.py     # Basic commands
+│   │   └── orders.py    # Advanced orders (SL, TP, trailing)
+│   ├── services/        # Business logic
+│   │   ├── bybit_service.py
+│   │   └── orders.py    # Order creation service
 │   └── utils/           # Utilities
 ├── config/
 │   └── settings.py      # Configuration
