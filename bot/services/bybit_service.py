@@ -60,14 +60,24 @@ class BybitService:
     def _parse_position(self, position: Dict[str, Any]) -> Dict[str, Any]:
         """Parse position data to common format"""
         try:
+            # Get raw size/contracts first (not float-converted yet)
+            size = position.get('size', position.get('positionQty', position.get('contracts', 0)))
+
+            # Get entry price - try multiple field names
+            entry_price = position.get('entryPrice', position.get('avgPrice', position.get('averagePrice', 0)))
+
             return {
                 'symbol': position.get('symbol', position.get('symbolName')),
                 'side': position.get('side', position.get('positionSide')),
-                'size': float(position.get('size', position.get('positionQty', 0))),
-                'entry_price': float(position.get('entryPrice', position.get('avgPrice', 0))),
+                'size': float(size) if size else 0.0,
+                'entry_price': float(entry_price) if entry_price else 0.0,
                 'liq_price': float(position.get('liqPrice', position.get('liqPrice', 0))),
-                'margin': float(position.get('positionValue', position.get('positionMargin', 0))),
-                'roee': float(position.get('realisedRoe', position.get('roee', 0))),
+                'margin': float(position.get('positionValue', position.get('positionMargin', position.get('notional', 0)))),
+                'roee': float(position.get('realisedRoe', position.get('roee', position.get('realizedRoe', 0)))),
+                # Add more fields for PnL calculation
+                'unrealized_pnl': float(position.get('unrealizedPnl', position.get('unrealisedPnl', 0))),
+                'realized_pnl': float(position.get('realizedPnl', position.get('cumRealisedPnl', 0))),
+                'contracts': float(position.get('contracts', position.get('size', 0))),
             }
         except Exception:
             return position
