@@ -11,6 +11,22 @@ A futures trading bot for managing Bybit futures accounts via Telegram.
 
 ## Installation
 
+### With Docker (Recommended)
+
+```bash
+# Clone the repository
+git clone <repo-url>
+cd war-machine
+
+# Create a .env file based on .env.example
+cp .env.example .env
+
+# Build and run with Docker Compose
+docker compose up -d
+```
+
+### With Poetry
+
 ```bash
 # Clone the repository
 git clone <repo-url>
@@ -35,6 +51,21 @@ BYBIT_TESTNET=true  # false for mainnet
 ```
 
 ## Usage
+
+### With Docker
+
+```bash
+# Start the bot
+docker compose up -d
+
+# View logs
+docker compose logs -f
+
+# Stop the bot
+docker compose down
+```
+
+### With Poetry
 
 ```bash
 # Launch the bot
@@ -77,5 +108,7 @@ war-machine/
 │   └── utils/           # Utilities
 ├── config/
 │   └── settings.py      # Configuration
+├── Dockerfile           # Docker configuration
+├── compose.yaml         # Docker Compose configuration
 └── pyproject.toml
 ```
