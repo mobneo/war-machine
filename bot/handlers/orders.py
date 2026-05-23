@@ -1,7 +1,7 @@
 from aiogram import Router
-from aiogram.types import Message, CallbackQuery
+from aiogram.types import Message, CallbackQuery, InlineKeyboardButton
 from aiogram.filters import Command, CommandObject
-from aiogram.utils.keyboard import InlineKeyboardBuilder, InlineKeyboardButton
+from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 
@@ -61,7 +61,6 @@ def create_order_keyboard(orders: list, current_page: int = 0, total_pages: int 
     # Add order cancel buttons
     for order in orders:
         symbol = order.get('symbol', 'UNKNOWN')
-        side = order.get('side', 'N/A').upper()
         order_id = order.get('id', '')
 
         if order_id and order.get('status', '').lower() in ['open', 'pending', 'new']:
@@ -91,7 +90,7 @@ def create_order_keyboard(orders: list, current_page: int = 0, total_pages: int 
         builder.row(*nav_row)
 
     builder.button(
-        text=f"❌ Cancel All",
+        text="❌ Cancel All",
         callback_data="cancel_all:all"
     )
 

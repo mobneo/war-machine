@@ -1,7 +1,7 @@
 from aiogram import Router
-from aiogram.types import Message, CallbackQuery
+from aiogram.types import Message, CallbackQuery, InlineKeyboardButton
 from aiogram.filters import Command, CommandObject
-from aiogram.utils.keyboard import InlineKeyboardBuilder, InlineKeyboardButton
+from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 
@@ -77,7 +77,7 @@ def create_position_keyboard(positions: list, current_page: int = 0, total_pages
         builder.row(*nav_row)
 
     builder.button(
-        text=f"✅ Close All",
+        text="✅ Close All",
         callback_data="close_all:all"
     )
 
@@ -215,7 +215,6 @@ async def callback_close_position(call: CallbackQuery, state: FSMContext):
         return
 
     symbol = parts[1]
-    side = parts[2]
 
     service = BybitService()
     result = service.close_position(symbol)
