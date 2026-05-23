@@ -4,7 +4,7 @@ A futures trading bot for managing Bybit futures accounts via Telegram.
 
 ## Tech Stack
 
-- Python 3.10+
+- Python 3.12+
 - aiogram 3.x (Telegram Bot API)
 - ccxt (library for cryptocurrency exchanges)
 - python-dotenv (configuration)
@@ -23,6 +23,7 @@ cp .env.example .env
 
 # Build and run with Docker Compose
 docker compose up -d
+# or: make run
 ```
 
 ### With Poetry
@@ -34,6 +35,7 @@ cd war-machine
 
 # Install dependencies with Poetry
 poetry install
+# or: make install
 
 # Create a .env file based on .env.example
 cp .env.example .env
@@ -57,9 +59,11 @@ BYBIT_TESTNET=true  # false for mainnet
 ```bash
 # Start the bot
 docker compose up -d
+# or: make docker-start
 
 # View logs
 docker compose logs -f
+# or: make docker-logs
 
 # Stop the bot
 docker compose down
@@ -70,9 +74,10 @@ docker compose down
 ```bash
 # Launch the bot
 poetry run python bot/main.py
+# or: make run
 ```
 
-### Available commands
+###available commands
 
 | Command | Description |
 |---------|----------|
@@ -92,6 +97,20 @@ poetry run python bot/main.py
 | `/trailing <symbol> <amount> <distance%> [limit_price]` | Trailing-stop order |
 | `/cancel <symbol> <order_id>` | Cancel order |
 | `/orders` | Show open orders |
+
+### Makefile commands
+
+| Command | Description |
+|---------|----------|
+| `make docker-start` | Build and start with Docker Compose |
+| `make docker-build` | Build Docker images |
+| `make docker-up` | Start Docker Compose |
+| `make docker-down` | Stop Docker Compose |
+| `make docker-logs` | View Docker logs (follow mode) |
+| `make docker-rebuild` | Rebuild and start |
+| `make docker-clean` | Stop and remove volumes |
+| `make run` | Run with Poetry |
+| `make install` | Install dependencies with Poetry |
 
 ## Project Structure
 

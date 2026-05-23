@@ -163,3 +163,65 @@ class BybitService:
             }
         except Exception:
             return order
+
+    def get_open_orders(self, symbol: Optional[str] = None) -> list:
+        """Get all open orders"""
+        try:
+            orders = self.exchange.fetch_open_orders(symbol)
+            return [self._parse_order_result(o) for o in orders]
+        except Exception as e:
+            return []
+
+    def cancel_order(self, symbol: str, order_id: str) -> Dict[str, Any]:
+        """Cancel an order by order_id"""
+        try:
+            order = self.exchange.cancel_order(order_id, symbol.upper())
+            return self._parse_order_result(order)
+        except Exception as e:
+            return {'error': str(e)}
+
+    def cancel_orders_by_symbol(self, symbol: str) -> Dict[str, Any]:
+        """Cancel all orders for a symbol"""
+        try:
+            self.exchange.cancel_all_orders(symbol.upper())
+            return {'success': True, 'message': f'All orders for {symbol} cancelled'}
+        except Exception as e:
+            return {'error': str(e)}
+
+    def cancel_all_orders(self) -> Dict[str, Any]:
+        """Cancel all open orders"""
+        try:
+            orders = self.exchange.fetch_open_orders()
+            for order in orders:
+                try:
+                    self.exchange.cancel_order(order.get('id'), order.get('symbol'))
+                except Exception:
+                    pass
+            return {'success': True, 'message': 'All orders cancelled'}
+        except Exception as e:
+            return {'error': str(e)}
+
+    def cancel_inactive_orders(self) -> Dict[str, Any]:
+        """Cancel orders that are not related to active positions"""
+        try:
+            # Get active positions to know which symbols are in use
+            positions = self.get_positions()
+            active_symbols = {pos.get('symbol') for pos in positions}
+
+            # Get all open orders
+            orders = self.exchange.fetch_open_orders()
+            cancelled_count = 0
+
+            for order in orders:
+                symbol = order.get('symbol')
+                # Cancel orders for symbols not in active positions
+                if symbol and symbol not in active_symbols:
+                    try:
+                        self.exchange.cancel_order(order.get('id'), symbol)
+                        cancelled_count += 1
+                    except Exception:
+                        pass
+
+            return {'success': True, 'cancelled_count': cancelled_count}
+        except Exception as e:
+            return {'error': str(e)}

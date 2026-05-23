@@ -1,298 +1,318 @@
 from aiogram import Router
-from aiogram.types import Message
+from aiogram.types import Message, CallbackQuery
 from aiogram.filters import Command, CommandObject
+from aiogram.utils.keyboard import InlineKeyboardBuilder, InlineKeyboardButton
+from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import State, StatesGroup
 
-from bot.services.orders import OrderService
+from bot.services.bybit_service import BybitService
 
 router = Router()
 
 
-@router.message(Command("buy"))
-async def cmd_buy(message: Message, command: CommandObject):
-    """Handle /buy <symbol> <amount> command"""
-    args = command.args.strip().split() if command.args else ""
+class OrderState(StatesGroup):
+    viewing = State()
 
-    if len(args) != 2:
-        await message.answer("⚠️ Usage: /buy <symbol> <amount>")
-        return
 
-    symbol, amount_str = args[0].upper(), args[1]
+def format_order(order: dict) -> str:
+    """Format order data for display"""
+    symbol = order.get('symbol', 'N/A')
+    side = order.get('side', 'N/A').upper()
+    order_type = order.get('order_type', 'N/A')
+    status = order.get('status', 'N/A')
+    amount = order.get('amount', 0)
+    filled = order.get('filled', 0)
+    price = order.get('price', 0)
+    stop_price = order.get('stop_price', 0)
+    order_id = order.get('id', 'N/A')
 
-    try:
-        amount = float(amount_str)
-    except ValueError:
-        await message.answer("❌ Incorrect quantity")
-        return
+    # Determine if long or short
+    order_side = "LONG" if side == "BUY" else "SHORT"
 
-    service = OrderService()
-    order = service.create_market_order(symbol, "buy", amount)
+    # Status emoji
+    status_emoji = {
+        "Open": "🟢",
+        "pending": "🟡",
+        "new": "🟡",
+        "filled": "✅",
+        "cancelled": "❌",
+        "canceled": "❌",
+        "rejected": "🔴",
+        "error": "🔴",
+    }.get(status.lower(), "⚪")
 
-    if 'error' in order:
-        await message.answer(f"❌ Error: {order['error']}")
-        return
+    msg = f"<b>{symbol}</b> {status_emoji} {status.upper()}\n"
+    msg += f"  {order_side} | {order_type.upper()}\n"
+    msg += f"  Amount: {amount:.4f} | Filled: {filled:.4f}\n"
+    msg += f"  Price: {price:.2f}"
 
-    await message.answer(
-        f"✅ Purchase order created!\n"
-        f"<code>symbol</code>: {order['symbol']}\n"
-        f"<code>amount</code>: {order['amount']}\n"
-        f"<code>price</code>: {order['price']}\n"
-        f"<code>id</code>: {order['id']}"
+    if stop_price:
+        msg += f" | Stop: {stop_price:.2f}"
+
+    msg += f"\n  ID: {order_id}"
+
+    return msg
+
+
+def create_order_keyboard(orders: list, current_page: int = 0, total_pages: int = 1) -> InlineKeyboardBuilder:
+    """Create inline keyboard for order actions with pagination"""
+    builder = InlineKeyboardBuilder()
+
+    # Add order cancel buttons
+    for order in orders:
+        symbol = order.get('symbol', 'UNKNOWN')
+        side = order.get('side', 'N/A').upper()
+        order_id = order.get('id', '')
+
+        if order_id and order.get('status', '').lower() in ['open', 'pending', 'new']:
+            builder.button(
+                text=f"❌ Cancel {symbol}",
+                callback_data=f"cancel_order:{symbol}:{order_id}"
+            )
+
+    # Pagination controls
+    nav_row = []
+    if current_page > 0:
+        nav_row.append(
+            InlineKeyboardButton(
+                text="⬅️ Previous",
+                callback_data=f"order_page:{current_page - 1}"
+            )
+        )
+    if current_page < total_pages - 1:
+        nav_row.append(
+            InlineKeyboardButton(
+                text="➡️ Next",
+                callback_data=f"order_page:{current_page + 1}"
+            )
+        )
+
+    if nav_row:
+        builder.row(*nav_row)
+
+    builder.button(
+        text=f"❌ Cancel All",
+        callback_data="cancel_all:all"
     )
 
+    builder.adjust(1)
+    return builder
 
-@router.message(Command("sell"))
-async def cmd_sell(message: Message, command: CommandObject):
-    """Handle /sell <symbol> <amount> command"""
-    # args = message.get_args().strip().split()
-    args = command.args.strip().split() if command.args else ""
 
-    if len(args) != 2:
-        await message.answer("⚠️ Usage: /sell <symbol> <amount>")
+def get_filtered_orders(orders: list, filter_arg: str) -> list:
+    """Filter orders based on filter argument"""
+    filtered_orders = []
+
+    if not filter_arg or filter_arg.lower() in ['open', 'all']:
+        return orders
+
+    filter_lower = filter_arg.lower()
+
+    for order in orders:
+        status = order.get('status', '').lower()
+        symbol = order.get('symbol', '')
+
+        # Filter by status
+        if filter_lower in ['open', 'pending', 'new']:
+            if status == filter_lower or status == 'open':
+                filtered_orders.append(order)
+        elif filter_lower == 'filled':
+            if status == 'filled':
+                filtered_orders.append(order)
+        elif filter_lower == 'cancelled':
+            if status in ['cancelled', 'canceled']:
+                filtered_orders.append(order)
+        # Filter by symbol
+        elif filter_lower in symbol.lower():
+            filtered_orders.append(order)
+        # Filter by active (open orders for symbols in positions)
+        elif filter_lower == 'active':
+            # Will be filtered by handler
+            filtered_orders.append(order)
+
+    return filtered_orders
+
+
+async def send_orders_page(
+    message_or_call,
+    orders: list,
+    page: int,
+    filter_arg: str = "",
+    is_callback: bool = False
+):
+    """Send a specific page of orders"""
+    if not orders:
+        if isinstance(message_or_call, Message):
+            await message_or_call.answer("⚠️ There are no orders")
+        else:
+            await message_or_call.answer("⚠️ There are no orders", show_alert=True)
         return
 
-    symbol, amount_str = args[0].upper(), args[1]
+    # Calculate pagination
+    page_size = 5
+    total_pages = (len(orders) + page_size - 1) // page_size
+    page = max(0, min(page, total_pages - 1))  # Clamp page to valid range
 
-    try:
-        amount = float(amount_str)
-    except ValueError:
-        await message.answer("❌ Incorrect quantity")
-        return
+    start_idx = page * page_size
+    end_idx = min(start_idx + page_size, len(orders))
+    page_orders = orders[start_idx:end_idx]
 
-    service = OrderService()
-    order = service.create_market_order(symbol, "sell", amount)
+    # Calculate totals for filtered orders
+    total_amount = sum(order.get('amount', 0) for order in orders)
+    total_filled = sum(order.get('filled', 0) for order in orders)
 
-    if 'error' in order:
-        await message.answer(f"❌ Error: {order['error']}")
-        return
+    # Build message
+    msg = f"<b>📋 Orders ({len(orders)}pcs, Total: {total_amount:.2f})</b>\n"
+    msg += f"Filled: {total_filled:.2f}\n"
+    msg += f"Page {page + 1}/{total_pages}\n\n"
 
-    await message.answer(
-        f"✅ Sell order created!\n"
-        f"<code>symbol</code>: {order['symbol']}\n"
-        f"<code>amount</code>: {order['amount']}\n"
-        f"<code>price</code>: {order['price']}\n"
-        f"<code>id</code>: {order['id']}"
-    )
+    for order in page_orders:
+        msg += format_order(order) + "\n\n"
 
+    # Create keyboard
+    keyboard = create_order_keyboard(page_orders, page, total_pages)
 
-# Stop-Loss commands
-@router.message(Command("sl"))
-async def cmd_stop_loss(message: Message, command: CommandObject):
-    """Handle stop-loss orders
-    Usage: /sl <symbol> <amount> <stop_price> [limit_price]
-    Examples:
-        /sl BTCUSDT 0.001 50000 - market stop-loss
-        /sl BTCUSDT 0.001 50000 49500 - limit stop-loss
-    """
-    # args = message.get_args().strip().split()
-    args = command.args.strip().split() if command.args else ""
-
-    if len(args) < 3:
-        await message.answer(
-            "⚠️ Usage: /sl <symbol> <amount> <stop_price> [limit_price]\n"
-            "Examples:\n"
-            "/sl BTCUSDT 0.001 50000 - market stop-loss\n"
-            "/sl BTCUSDT 0.001 50000 49500 - limit stop-loss"
-        )
-        return
-
-    symbol, amount_str, stop_price_str = args[0].upper(), args[1], args[2]
-    limit_price = float(args[3]) if len(args) > 3 else None
-
-    try:
-        amount = float(amount_str)
-        stop_price = float(stop_price_str)
-    except ValueError:
-        await message.answer("❌ Incorrect values")
-        return
-
-    service = OrderService()
-
-    if limit_price:
-        order = service.create_stop_limit_order(
-            symbol, "sell", amount, limit_price, stop_price, reduce_only=True
-        )
-        order_type = "stop-limit"
+    if is_callback:
+        await message_or_call.message.edit_text(msg, reply_markup=keyboard.as_markup())
     else:
-        order = service.create_stop_market_order(
-            symbol, "sell", amount, stop_price, reduce_only=True
-        )
-        order_type = "stop-market"
-
-    if 'error' in order:
-        await message.answer(f"❌ Error: {order['error']}")
-        return
-
-    await message.answer(
-        f"✅ Stop-Loss order created! ({order_type})\n"
-        f"<code>symbol</code>: {order['symbol']}\n"
-        f"<code>amount</code>: {order['amount']}\n"
-        f"<code>stop_price</code>: {order['stop_price']}\n"
-        f"<code>limit_price</code>: {order.get('price', 'N/A')}\n"
-        f"<code>id</code>: {order['id']}"
-    )
-
-
-# Take-Profit commands
-@router.message(Command("tp"))
-async def cmd_take_profit(message: Message, command: CommandObject):
-    """Handle take-profit orders
-    Usage: /tp <symbol> <amount> <trigger_price> [limit_price]
-    Examples:
-        /tp BTCUSDT 0.001 60000 - market take-profit
-        /tp BTCUSDT 0.001 60000 60500 - limit take-profit
-    """
-    # args = message.get_args().strip().split()
-    args = command.args.strip().split() if command.args else ""
-
-    if len(args) < 3:
-        await message.answer(
-            "⚠️ Usage: /tp <symbol> <amount> <trigger_price> [limit_price]\n"
-            "Examples:\n"
-            "/tp BTCUSDT 0.001 60000 - market take-profit\n"
-            "/tp BTCUSDT 0.001 60000 60500 - limit take-profit"
-        )
-        return
-
-    symbol, amount_str, trigger_price_str = args[0].upper(), args[1], args[2]
-    limit_price = float(args[3]) if len(args) > 3 else None
-
-    try:
-        amount = float(amount_str)
-        trigger_price = float(trigger_price_str)
-    except ValueError:
-        await message.answer("❌ Incorrect values")
-        return
-
-    service = OrderService()
-
-    if limit_price:
-        order = service.create_take_profit_order(
-            symbol, "sell", amount, trigger_price, order_type="limit", price=limit_price
-        )
-        order_type = "take-profit limit"
-    else:
-        order = service.create_take_profit_order(
-            symbol, "sell", amount, trigger_price, order_type="market"
-        )
-        order_type = "take-profit market"
-
-    if 'error' in order:
-        await message.answer(f"❌ Error: {order['error']}")
-        return
-
-    await message.answer(
-        f"✅ Take-Profit order created! ({order_type})\n"
-        f"<code>symbol</code>: {order['symbol']}\n"
-        f"<code>amount</code>: {order['amount']}\n"
-        f"<code>trigger_price</code>: {order['stop_price']}\n"
-        f"<code>limit_price</code>: {order.get('price', 'N/A')}\n"
-        f"<code>id</code>: {order['id']}"
-    )
-
-
-# Trailing Stop commands
-@router.message(Command("trailing"))
-async def cmd_trailing_stop(message: Message, command: CommandObject):
-    """Handle trailing-stop orders
-    Usage: /trailing <symbol> <amount> <trailing_distance> [limit_price]
-    Trailing distance in % (e.g., 1 = 1%)
-    Examples:
-        /trailing BTCUSDT 0.001 1 - trailing stop with 1% distance, market order
-        /trailing BTCUSDT 0.001 1 59000 - limit trailing stop
-    """
-    args = command.args.strip().split() if command.args else ""
-
-    if len(args) < 3:
-        await message.answer(
-            "⚠️ Usage: /trailing <symbol> <amount> <trailing_distance> [limit_price]\n"
-            "Trailing distance in % (e.g., 1 = 1%)\n"
-            "Examples:\n"
-            "/trailing BTCUSDT 0.001 1 - market trailing stop\n"
-            "/trailing BTCUSDT 0.001 1 59000 - limit trailing stop"
-        )
-        return
-
-    symbol, amount_str, trailing_str = args[0].upper(), args[1], args[2]
-    limit_price = float(args[3]) if len(args) > 3 else None
-
-    try:
-        amount = float(amount_str)
-        trailing_distance = float(trailing_str)
-    except ValueError:
-        await message.answer("❌ Incorrect values")
-        return
-
-    service = OrderService()
-
-    if limit_price:
-        order = service.create_trailing_stop_order(
-            symbol, "sell", amount, trailing_distance,
-            order_type="limit", price=limit_price
-        )
-        order_type = "trailing-stop limit"
-    else:
-        order = service.create_trailing_stop_order(
-            symbol, "sell", amount, trailing_distance,
-            order_type="market"
-        )
-        order_type = "trailing-stop market"
-
-    if 'error' in order:
-        await message.answer(f"❌ Error: {order['error']}")
-        return
-
-    await message.answer(
-        f"✅ Trailing Stop order created! ({order_type})\n"
-        f"<code>symbol</code>: {order['symbol']}\n"
-        f"<code>amount</code>: {order['amount']}\n"
-        f"<code>trailing_distance</code>: {trailing_distance}%\n"
-        f"<code>id</code>: {order['id']}"
-    )
-
-
-# Order management commands
-@router.message(Command("cancel"))
-async def cmd_cancel(message: Message, command: CommandObject):
-    """Cancel an order
-    Usage: /cancel <symbol> <order_id>
-    """
-    args = command.args.strip().split() if command.args else ""
-
-    if len(args) != 2:
-        await message.answer("⚠️ Usage: /cancel <symbol> <order_id>")
-        return
-
-    symbol, order_id = args[0].upper(), args[1]
-    service = OrderService()
-    result = service.cancel_order(symbol, order_id)
-
-    if 'error' in result:
-        await message.answer(f"❌ Error: {result['error']}")
-        return
-
-    await message.answer(f"✅ Order {order_id} cancelled for {symbol}")
+        await message_or_call.answer(msg, reply_markup=keyboard.as_markup())
 
 
 @router.message(Command("orders"))
-async def cmd_open_orders(message: Message):
-    """Show all open orders"""
-    service = OrderService()
+async def cmd_open_orders(message: Message, command: CommandObject, state: FSMContext):
+    """Handle /orders command with optional filters
+
+    Usage:
+        /orders - show all orders
+        /orders open - show only open orders
+        /orders filled - show only filled orders
+        /orders cancelled - show only cancelled orders
+        /orders <symbol> - show only orders for specific symbol
+        /orders active - show orders for symbols with active positions
+    """
+    service = BybitService()
+
+    # Get all open orders first
     orders = service.get_open_orders()
 
-    if not orders:
-        await message.answer("⚠️ No open orders")
+    # Get filter from command args
+    filter_arg = command.args.strip().lower() if command.args else ""
+
+    # Apply filters
+    filtered_orders = get_filtered_orders(orders, filter_arg)
+
+    # Handle special "active" filter - show orders for symbols with active positions
+    if filter_arg == "active":
+        positions = service.get_positions()
+        active_symbols = {pos.get('symbol') for pos in positions}
+        filtered_orders = [o for o in orders if o.get('symbol') in active_symbols]
+
+    if not filtered_orders:
+        filter_name = filter_arg if filter_arg else "All"
+        await message.answer(f"⚠️ No orders found for filter: {filter_name}")
         return
 
-    msg = "📋 Open orders:\n\n"
+    # Save orders to state for callback handling
+    await state.update_data(orders=filtered_orders, filter=filter_arg)
+
+    await send_orders_page(message, filtered_orders, 0, filter_arg, False)
+
+
+@router.callback_query(lambda call: call.data.startswith("order_page:"))
+async def callback_order_page(call: CallbackQuery, state: FSMContext):
+    """Handle pagination callback"""
+    data = await state.get_data()
+    orders = data.get("orders", [])
+
+    page = int(call.data.split(":")[1])
+    filter_arg = data.get("filter", "")
+
+    await send_orders_page(call, orders, page, filter_arg, True)
+
+
+@router.callback_query(lambda call: call.data.startswith("cancel_order:"))
+async def callback_cancel_order(call: CallbackQuery, state: FSMContext):
+    """Handle individual order cancel callback"""
+    await call.answer("Processing...")
+
+    parts = call.data.split(":")
+    if len(parts) < 3:
+        await call.answer("❌ Invalid request")
+        return
+
+    symbol = parts[1]
+    order_id = parts[2]
+
+    service = BybitService()
+    result = service.cancel_order(symbol, order_id)
+
+    if 'error' in result:
+        await call.answer(f"❌ Error: {result['error']}")
+    else:
+        await call.answer(f"✅ Order {order_id} cancelled for {symbol}")
+
+
+@router.callback_query(lambda call: call.data == "cancel_all:all")
+async def callback_cancel_all(call: CallbackQuery, state: FSMContext):
+    """Handle cancel all callback"""
+    await call.answer("Processing...")
+
+    data = await state.get_data()
+    orders = data.get("orders", [])
+
+    if not orders:
+        await call.answer("⚠️ No orders to cancel")
+        return
+
+    service = BybitService()
+    results = []
+
     for order in orders:
-        msg += (
-            f"<b>{order['symbol']}</b> {order['side'].upper()}\n"
-            f"  Type: {order['order_type']}\n"
-            f"  Status: {order['status']}\n"
-            f"  Amount: {order['amount']}\n"
-            f"  Filled: {order['filled']}\n"
-            f"  Price: {order['price']}\n"
-            f"  ID: {order['id']}\n\n"
+        symbol = order.get('symbol', '')
+        order_id = order.get('id', '')
+        if order_id:
+            result = service.cancel_order(symbol, order_id)
+            if 'error' in result:
+                results.append(f"❌ {symbol} {order_id}: {result['error']}")
+            else:
+                results.append(f"✅ {symbol}: Cancelled")
+
+    if results:
+        await call.message.edit_text("\n".join(results))
+    else:
+        await call.message.edit_text("✅ All orders cancelled")
+
+
+@router.message(Command("cancel_inactive"))
+async def cmd_cancel_inactive(message: Message):
+    """Cancel orders for symbols without active positions"""
+    service = BybitService()
+    result = service.cancel_inactive_orders()
+
+    if 'error' in result:
+        await message.answer(f"❌ Error: {result['error']}")
+    else:
+        await message.answer(
+            f"✅ Cancelled {result.get('cancelled_count', 0)} inactive orders"
         )
 
-    await message.answer(msg)
+
+@router.message(Command("cancel_symbol"))
+async def cmd_cancel_symbol(message: Message, command: CommandObject):
+    """Cancel all orders for a specific symbol
+    Usage: /cancel_symbol <symbol>
+    """
+    args = command.args.strip() if command.args else ""
+
+    if not args:
+        await message.answer("⚠️ Usage: /cancel_symbol <symbol>")
+        return
+
+    symbol = args.upper()
+    service = BybitService()
+    result = service.cancel_orders_by_symbol(symbol)
+
+    if 'error' in result:
+        await message.answer(f"❌ Error: {result['error']}")
+    else:
+        await message.answer(f"✅ {result.get('message', 'Orders cancelled')}")
