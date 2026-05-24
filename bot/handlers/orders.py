@@ -304,7 +304,7 @@ async def cmd_cancel_symbol(message: Message, command: CommandObject):
     args = command.args.strip() if command.args else ""
 
     if not args:
-        await message.answer("⚠️ Usage: /cancel_symbol <symbol>")
+        await message.answer("⚠️ Usage: /cancel_symbol [symbol]")
         return
 
     symbol = args.upper()

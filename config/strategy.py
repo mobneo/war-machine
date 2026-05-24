@@ -28,14 +28,24 @@ class StrategyConfigStore:
     """Store for symbol-specific strategy configurations"""
 
     def __init__(self):
-        # Default config for all symbols
+        # Default config for all symbols (global settings)
+        self._default_config = StrategyConfig()
+        # Symbol-specific configs
         self._configs: Dict[str, StrategyConfig] = {}
 
     def get_config(self, symbol: str) -> StrategyConfig:
-        """Get configuration for a symbol"""
+        """Get configuration for a symbol (symbol-specific or global default)"""
         if symbol not in self._configs:
-            self._configs[symbol] = StrategyConfig()
+            return self._default_config
         return self._configs[symbol]
+
+    def get_default_config(self) -> StrategyConfig:
+        """Get global default configuration"""
+        return self._default_config
+
+    def set_default_config(self, config: StrategyConfig):
+        """Set global default configuration"""
+        self._default_config = config
 
     def set_config(self, symbol: str, config: StrategyConfig):
         """Set configuration for a symbol"""
@@ -68,9 +78,21 @@ class StrategyConfigStore:
         return config
 
     def delete_config(self, symbol: str):
-        """Remove symbol-specific configuration"""
+        """Remove symbol-specific configuration, falling back to global default"""
         if symbol in self._configs:
             del self._configs[symbol]
+
+    def reset_to_default(self, symbol: str):
+        """Reset symbol-specific config to use global default"""
+        self.delete_config(symbol)
+
+    def update_global_default(self, **kwargs):
+        """Update global default configuration with provided fields"""
+        config = self._default_config
+        for key, value in kwargs.items():
+            if hasattr(config, key):
+                setattr(config, key, value)
+        return config
 
     def get_all_configs(self) -> Dict[str, StrategyConfig]:
         """Get all configurations"""

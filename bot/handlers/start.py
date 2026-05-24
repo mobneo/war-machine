@@ -3,13 +3,14 @@ from aiogram.types import Message
 from aiogram.filters import Command, CommandObject
 
 from bot.services.bybit_service import BybitService
+from config.strategy import strategy_config_store, get_strategy_config
 
 router = Router()
 
 
 @router.message(Command("config"))
 async def cmd_config(message: Message):
-    """Handle /config command - show balance, PnL, and ROE"""
+    """Handle /config command - show balance, PnL, ROE, and local strategy config"""
     service = BybitService()
 
     # Get balance
@@ -61,10 +62,28 @@ async def cmd_config(message: Message):
     else:
         positions_text = "📊 No open positions"
 
+    # Format local strategy configs
+    strategy_configs = strategy_config_store.get_all_configs()
+    if strategy_configs:
+        strategy_text = "\n⚙️ Local Strategy Configs:\n"
+        for symbol, config in strategy_configs.items():
+            risk_pct = config.risk * 100
+            tp_pct = config.tp_percent * 100
+            sl_pct = config.sl_percent * 100
+            sl_type = "Trailing" if config.trailing_stop else "Stop Loss"
+            strategy_text += (
+                f"  {symbol}:\n"
+                f"    Risk: {risk_pct:.1f}% | TP: {tp_pct:.1f}% (x{config.tp_count})\n"
+                f"    SL: {sl_pct:.1f}% ({sl_type}) | Leverage: {config.leverage}x\n"
+            )
+    else:
+        strategy_text = "\n⚙️ No local strategy configurations"
+
     await message.answer(
         f"<b>⚙️ Config / Account Info</b>\n\n"
         f"{balance_text}\n"
-        f"{positions_text}"
+        f"{positions_text}\n"
+        f"{strategy_text}"
     )
 
 
@@ -148,7 +167,7 @@ async def cmd_buy(message: Message, command: CommandObject):
     args = command.args.strip().split() if command.args else ""
 
     if len(args) != 2:
-        await message.answer("⚠️ Usage: /buy <symbol> <amount>")
+        await message.answer("⚠️ Usage: /buy [symbol] [amount]")
         return
 
     symbol, amount_str = args[0].upper(), args[1]
@@ -181,7 +200,7 @@ async def cmd_sell(message: Message, command: CommandObject):
     args = command.args.strip().split() if command.args else ""
 
     if len(args) != 2:
-        await message.answer("⚠️ Usage: /sell <symbol> <amount>")
+        await message.answer("⚠️ Usage: /sell [symbol] [amount]")
         return
 
     symbol, amount_str = args[0].upper(), args[1]
