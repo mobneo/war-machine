@@ -179,7 +179,7 @@ class OrderService:
         try:
             orders = self.exchange.fetch_open_orders(symbol)
             return [self._parse_order(o) for o in orders]
-        except Exception as e:
+        except Exception:
             return []
 
     def _parse_order(self, order: Dict[str, Any]) -> Dict[str, Any]:

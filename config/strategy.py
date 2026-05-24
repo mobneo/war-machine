@@ -1,6 +1,6 @@
 """Local strategy configuration - user-modifiable trading parameters"""
-from typing import Dict, Optional, List
-from dataclasses import dataclass, field
+from typing import Dict
+from dataclasses import dataclass
 
 
 @dataclass

@@ -3,7 +3,7 @@ from aiogram.types import Message
 from aiogram.filters import Command, CommandObject
 
 from bot.services.bybit_service import BybitService
-from config.strategy import strategy_config_store, get_strategy_config
+from config.strategy import strategy_config_store
 
 router = Router()
 

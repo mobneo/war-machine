@@ -54,7 +54,7 @@ class BybitService:
                             result.append(self._parse_position(positions_list))
 
             return result
-        except Exception as e:
+        except Exception:
             return []
 
     def _parse_position(self, position: Dict[str, Any]) -> Dict[str, Any]:

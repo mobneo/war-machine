@@ -1,5 +1,5 @@
 """Strategy service for executing trades based on local strategy configuration"""
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any
 from config import settings
 from config.strategy import get_strategy_config, StrategyConfig
 import ccxt
