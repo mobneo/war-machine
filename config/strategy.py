@@ -2,7 +2,6 @@
 from typing import Dict
 from dataclasses import dataclass
 
-
 @dataclass
 class StrategyConfig:
     """Trading strategy configuration for a specific symbol"""
@@ -36,7 +35,17 @@ class StrategyConfigStore:
     def get_config(self, symbol: str) -> StrategyConfig:
         """Get configuration for a symbol (symbol-specific or global default)"""
         if symbol not in self._configs:
-            return self._default_config
+            config = StrategyConfig(
+                risk=self._default_config.risk,
+                tp_percent=self._default_config.tp_percent,
+                tp_count=self._default_config.tp_count,
+                sl_percent=self._default_config.sl_percent,
+                trailing_stop=self._default_config.trailing_stop,
+                leverage=self._default_config.leverage,
+            )
+            self._configs[symbol] = config
+            from config import yaml_persistence
+            yaml_persistence.save_configs_to_yaml(self)
         return self._configs[symbol]
 
     def get_default_config(self) -> StrategyConfig:
@@ -127,3 +136,10 @@ def get_strategy_config(symbol: str) -> StrategyConfig:
 def set_strategy_config(symbol: str, config: StrategyConfig):
     """Convenience function to set strategy config for a symbol"""
     strategy_config_store.set_config(symbol, config)
+
+
+def _init_store():
+    from config.yaml_persistence import init_store_from_yaml
+    init_store_from_yaml(strategy_config_store)
+
+_init_store()

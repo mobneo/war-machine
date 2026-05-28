@@ -1,10 +1,9 @@
 """YAML persistence for strategy configurations"""
-import os
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, Optional, Tuple
 import yaml
 
-from config.strategy import StrategyConfig, StrategyConfigStore, strategy_config_store
+from config.strategy import StrategyConfig, StrategyConfigStore
 
 
 CONFIG_DIR = Path(__file__).parent.parent / "config"
@@ -29,13 +28,21 @@ def _dict_to_config(data: Dict) -> StrategyConfig:
     )
 
 
-def load_configs_from_yaml() -> Dict[str, StrategyConfig]:
-    """Load all configurations from YAML file"""
+def load_configs_from_yaml() -> Tuple[Optional[StrategyConfig], Dict[str, StrategyConfig]]:
+    """Load all configurations from YAML file
+
+    Returns:
+        Tuple of (global_config, symbol_configs_dict)
+    """
     if not CONFIG_FILE.exists():
-        return {}
+        return None, {}
 
     with open(CONFIG_FILE, 'r') as f:
         data = yaml.safe_load(f) or {}
+
+    global_config = None
+    if 'global' in data:
+        global_config = _dict_to_config(data['global'])
 
     configs = {}
     symbols_data = data.get('symbols', {})
@@ -43,7 +50,7 @@ def load_configs_from_yaml() -> Dict[str, StrategyConfig]:
         if symbol_config:
             configs[symbol] = _dict_to_config(symbol_config)
 
-    return configs
+    return global_config, configs
 
 
 def save_configs_to_yaml(store: StrategyConfigStore):
@@ -63,12 +70,12 @@ def save_configs_to_yaml(store: StrategyConfigStore):
 
 def init_store_from_yaml(store: StrategyConfigStore):
     """Initialize store with configs from YAML file"""
-    configs = load_configs_from_yaml()
+    global_config, symbol_configs = load_configs_from_yaml()
 
-    if 'global' in configs:
-        store.set_default_config(configs.pop('global'))
+    if global_config is not None:
+        store.set_default_config(global_config)
 
-    for symbol, config in configs.items():
+    for symbol, config in symbol_configs.items():
         store.set_config(symbol, config)
 
 
@@ -78,15 +85,11 @@ def update_store_from_yaml(store: StrategyConfigStore, symbol: Optional[str] = N
     If symbol is None - reload all configs from YAML
     If symbol is provided - reload only that symbol's config
     """
-    configs = load_configs_from_yaml()
+    global_config, symbol_configs = load_configs_from_yaml()
 
     if symbol is None:
         init_store_from_yaml(store)
         return
 
-    if symbol in configs:
-        store.set_config(symbol, configs[symbol])
-    elif CONFIG_FILE.exists():
-        symbol_configs = configs.get('symbols', {})
-        if symbol in symbol_configs:
-            store.set_config(symbol, symbol_configs[symbol])
+    if symbol in symbol_configs:
+        store.set_config(symbol, symbol_configs[symbol])

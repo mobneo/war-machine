@@ -204,6 +204,10 @@ async def callback_global_strategy(call: CallbackQuery, state: FSMContext):
         return
 
     if action in ["risk", "tp", "sl", "leverage"]:
+        await state.set_state(StrategyState.setting_risk if action == "risk" else
+                              StrategyState.setting_tp if action == "tp" else
+                              StrategyState.setting_sl if action == "sl" else
+                              StrategyState.setting_leverage)
         await state.update_data(current_symbol=None, current_action=action, global_mode=True)
         await call.answer(f"⚙️ Global {action.capitalize()} settings")
 
@@ -465,7 +469,7 @@ async def cmd_global_strategy(message: Message, command: CommandObject, state: F
     if not args:
         # Show current global config
         config = strategy_config_store.get_default_config()
-        msg = f"<b>🌍 Global Strategy Configuration</b>\n\n"
+        msg = "<b>🌍 Global Strategy Configuration</b>\n\n"
         msg += f"  Risk: {config.risk * 100:.1f}%\n"
         msg += f"  TP: {config.tp_percent * 100:.1f}% (x{config.tp_count})\n"
         msg += f"  SL: {config.sl_percent * 100:.1f}%\n"
