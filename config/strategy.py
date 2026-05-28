@@ -46,15 +46,21 @@ class StrategyConfigStore:
     def set_default_config(self, config: StrategyConfig):
         """Set global default configuration"""
         self._default_config = config
+        from config import yaml_persistence
+        yaml_persistence.save_configs_to_yaml(self)
 
     def set_config(self, symbol: str, config: StrategyConfig):
         """Set configuration for a symbol"""
         self._configs[symbol] = config
+        from config import yaml_persistence
+        yaml_persistence.save_configs_to_yaml(self)
 
     def update_risk(self, symbol: str, risk: float) -> StrategyConfig:
         """Update risk for a symbol"""
         config = self.get_config(symbol)
-        config.risk = max(0.0, min(1.0, risk))  # Clamp between 0 and 1
+        config.risk = max(0.0, min(1.0, risk))
+        from config import yaml_persistence
+        yaml_persistence.save_configs_to_yaml(self)
         return config
 
     def update_tp(self, symbol: str, tp_percent: float, tp_count: int) -> StrategyConfig:
@@ -62,6 +68,8 @@ class StrategyConfigStore:
         config = self.get_config(symbol)
         config.tp_percent = max(0.001, tp_percent)
         config.tp_count = max(1, tp_count)
+        from config import yaml_persistence
+        yaml_persistence.save_configs_to_yaml(self)
         return config
 
     def update_sl(self, symbol: str, sl_percent: float, use_trailing: bool = False) -> StrategyConfig:
@@ -69,18 +77,24 @@ class StrategyConfigStore:
         config = self.get_config(symbol)
         config.sl_percent = max(0.001, sl_percent)
         config.trailing_stop = use_trailing
+        from config import yaml_persistence
+        yaml_persistence.save_configs_to_yaml(self)
         return config
 
     def update_leverage(self, symbol: str, leverage: int) -> StrategyConfig:
         """Update leverage for a symbol"""
         config = self.get_config(symbol)
-        config.leverage = max(1, min(100, leverage))  # Clamp between 1 and 100
+        config.leverage = max(1, min(100, leverage))
+        from config import yaml_persistence
+        yaml_persistence.save_configs_to_yaml(self)
         return config
 
     def delete_config(self, symbol: str):
         """Remove symbol-specific configuration, falling back to global default"""
         if symbol in self._configs:
             del self._configs[symbol]
+            from config import yaml_persistence
+            yaml_persistence.save_configs_to_yaml(self)
 
     def reset_to_default(self, symbol: str):
         """Reset symbol-specific config to use global default"""
@@ -92,6 +106,8 @@ class StrategyConfigStore:
         for key, value in kwargs.items():
             if hasattr(config, key):
                 setattr(config, key, value)
+        from config import yaml_persistence
+        yaml_persistence.save_configs_to_yaml(self)
         return config
 
     def get_all_configs(self) -> Dict[str, StrategyConfig]:

@@ -1,0 +1,27 @@
+# Example strategy configurations
+# Copy this file to strategies.yml and edit values as needed
+
+global:
+  risk: 0.01           # Risk per trade (0.01 = 1%)
+  tp_percent: 0.02     # Take profit percentage (0.02 = 2%)
+  tp_count: 1          # Number of take profit orders
+  sl_percent: 0.01     # Stop loss percentage (0.01 = 1%)
+  trailing_stop: false # Use trailing stop instead of regular SL
+  leverage: 10         # Leverage (1-100)
+
+symbols:
+  BTCUSDT:
+    risk: 0.02
+    tp_percent: 0.03
+    tp_count: 2
+    sl_percent: 0.015
+    trailing_stop: true
+    leverage: 20
+
+  ETHUSDT:
+    risk: 0.015
+    tp_percent: 0.025
+    tp_count: 1
+    sl_percent: 0.01
+    trailing_stop: false
+    leverage: 15

@@ -1,0 +1,5 @@
+# Ignore all yml files
+*.yml
+
+# Exception for example file
+ !strategies.yml.example
