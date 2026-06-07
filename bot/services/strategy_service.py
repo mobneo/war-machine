@@ -44,9 +44,9 @@ class StrategyService:
         """Get USDT balance"""
         try:
             balance = self.exchange.fetch_balance()
-            return balance.get('USDT', {}).get('free', 0)
+            return float(balance.get('USDT', {}).get('free', 0))
         except Exception:
-            return 0
+            return 0.0
 
     def open_position_with_orders(
         self,
@@ -62,7 +62,7 @@ class StrategyService:
 
             # Get current price
             ticker = self.exchange.fetch_ticker(symbol)
-            current_price = ticker.get('last', 0)
+            current_price = float(ticker.get('last', 0))
 
             if current_price == 0:
                 return {'error': 'Cannot get current price'}
@@ -73,7 +73,7 @@ class StrategyService:
             tp_side = 'sell' if is_long else 'buy'
 
             # Get balance
-            balance = self._get_balance_usdt()
+            balance = float(self._get_balance_usdt())
             if balance <= 0:
                 return {'error': 'Insufficient balance'}
 
@@ -101,28 +101,36 @@ class StrategyService:
             # Set position leverage
             try:
                 self.exchange.set_leverage(leverage, symbol)
-            except Exception as e:
+            except Exception:
                 pass  # Leverage may already be set
 
-            # Open position with market order
-            order_params = {}
-            if is_long:
-                order_params['reduceOnly'] = False
-            else:
-                order_params['reduceOnly'] = False
+            order_params = {'reduceOnly': False}
 
-            order = self.exchange.create_market_order(
-                symbol, entry_side, position_size, None, order_params
-            )
+            try:
+                self.exchange.create_market_order(
+                    symbol, entry_side, position_size, None, order_params
+                )
+                # if not order or 'id' not in order:
+                #     return {'error': f'Failed to open position: {order}'}
+            except Exception as e:
+                return {'error': f'Market order failed: {e}'}
 
-            if 'id' not in order:
-                return {'error': f'Failed to open position: {order}'}
-
-            # Wait a moment for position to be registered
             import time
             time.sleep(1)
 
-            # Create TP orders
+            sl_results = {'order': None, 'error': None}
+            if strategy_config.trailing_stop:
+                sl_results['error'] = 'Trailing stop not yet implemented'
+            else:
+                try:
+                    sl_order = self.exchange.create_stop_market_order(
+                        symbol, tp_side, position_size, stop_price,
+                        params={'stopPrice': stop_price, 'triggerBy': 'LastPrice'}
+                    )
+                    sl_results['order'] = sl_order
+                except Exception as e:
+                    sl_results['error'] = f'SL order failed: {e}'
+
             tp_results = []
             tp_amount = position_size / strategy_config.tp_count
 
@@ -133,23 +141,14 @@ class StrategyService:
                 else:
                     tp_price = entry_price * (1 - tp_percent * (i + 1) / strategy_config.tp_count)
 
-                tp_order = self.exchange.create_limit_order(
-                    symbol, tp_side, tp_amount, tp_price
-                )
-                tp_results.append(tp_order)
+                try:
+                    tp_order = self.exchange.create_limit_order(
+                        symbol, tp_side, tp_amount, tp_price
+                    )
+                    tp_results.append(tp_order)
+                except Exception as e:
+                    tp_results.append({'error': f'TP order {i + 1} failed: {e}'})
 
-            # Create SL order
-            sl_results = {'order': None, 'error': None}
-            if strategy_config.trailing_stop:
-                # For trailing stop, we need to set it on the position
-                # This is Bybit-specific - may need adjustment
-                sl_results['error'] = 'Trailing stop not yet implemented'
-            else:
-                sl_order = self.exchange.create_stop_market_order(
-                    symbol, tp_side, position_size, stop_price,
-                    params={'stopPrice': stop_price, 'triggerBy': 'LastPrice'}
-                )
-                sl_results['order'] = sl_order
 
             return {
                 'success': True,
@@ -179,7 +178,7 @@ class StrategyService:
                 return {'error': f'No position for {symbol}'}
 
             position = positions[0]
-            entry_price = position.get('entryPrice', 0)
+            entry_price = float(position.get('entryPrice', 0))
             side = position.get('side', '').lower()
 
             if side not in ['long', 'short']:
