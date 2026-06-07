@@ -1,4 +1,4 @@
-.PHONY: run install docker-build docker-up docker-down docker-logs
+.PHONY: run install docker-start docker-build docker-up docker-down docker-restart docker-logs docker-rebuild docker-clean
 
 run:
 	poetry run python -m bot.main
@@ -17,6 +17,10 @@ docker-up:
 
 docker-down:
 	docker compose down
+
+docker-restart:
+	make docker-down
+	make docker-start
 
 docker-logs:
 	docker compose logs -f

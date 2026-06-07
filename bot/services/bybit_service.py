@@ -1,7 +1,10 @@
+import logging
+
 import ccxt
 from typing import Optional, Dict, Any
 from config import settings
 
+logger = logging.getLogger(__name__)
 
 class BybitService:
     def __init__(self):
@@ -98,18 +101,32 @@ class BybitService:
         except Exception as e:
             return {'error': str(e)}
 
+    _TICKER_TOP_KEYS = (
+        'ask', 'askVolume', 'average', 'baseVolume', 'bid', 'bidVolume',
+        'change', 'close', 'datetime', 'high', 'indexPrice', 'last', 'low',
+        'markPrice', 'open', 'percentage', 'previousClose', 'quoteVolume',
+        'symbol', 'timestamp', 'vwap',
+    )
+    _TICKER_INFO_KEYS = (
+        'symbol', 'lastPrice', 'indexPrice', 'markPrice', 'prevPrice24h',
+        'price24hPcnt', 'highPrice24h', 'lowPrice24h', 'prevPrice1h',
+        'openInterest', 'openInterestValue', 'turnover24h', 'volume24h',
+        'fundingRate', 'nextFundingTime', 'predictedDeliveryPrice',
+        'basisRate', 'deliveryFeeRate', 'delivaryTime', 'ask1Size',
+        'bid1Price', 'ask1Price', 'bid1Size', 'basis', 'preOpenPrice',
+        'preQty', 'curPreListingPhase', 'fundingIntervalHour',
+        'basisRateYear', 'fundingCap',
+    )
+
     def get_ticker(self, symbol: str) -> Optional[Dict[str, Any]]:
         """Get ticker (price) for a symbol"""
         try:
             ticker = self.exchange.fetch_ticker(symbol)
-            return {
-                'symbol': ticker.get('symbol'),
-                'last': ticker.get('last'),
-                'bid': ticker.get('bid'),
-                'ask': ticker.get('ask'),
-                'volume': ticker.get('volume'),
-            }
-        except Exception as e:
+            result = {k: ticker.get(k) for k in self._TICKER_TOP_KEYS}
+            info = ticker.get('info') or {}
+            result['info'] = {k: info.get(k) for k in self._TICKER_INFO_KEYS}
+            return result
+        except Exception:
             return None
 
     def get_symbols(self) -> list:
@@ -169,7 +186,7 @@ class BybitService:
         try:
             orders = self.exchange.fetch_open_orders(symbol)
             return [self._parse_order_result(o) for o in orders]
-        except Exception as e:
+        except Exception:
             return []
 
     def cancel_order(self, symbol: str, order_id: str) -> Dict[str, Any]:
