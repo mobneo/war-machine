@@ -10,6 +10,7 @@ class OrderService:
         self.exchange = ccxt.bybit({
             'apiKey': settings.bybit_api_key or "",
             'secret': settings.bybit_secret_key or "",
+            'sandbox': settings.bybit_testnet,
         })
         self.exchange.load_markets()
 

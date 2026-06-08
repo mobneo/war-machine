@@ -11,8 +11,18 @@ from config.strategy import (
     StrategyConfig
 )
 from bot.services.strategy_service import StrategyService
+from bot.services.bybit_service import BybitService
 
 router = Router()
+
+
+async def get_balance_usdt() -> float:
+    try:
+        service = BybitService()
+        balance_info = service.get_balance("USDT")
+        return float(balance_info.get('total', 0))
+    except Exception:
+        return 0.0
 
 
 class StrategyState(StatesGroup):
@@ -22,14 +32,19 @@ class StrategyState(StatesGroup):
     setting_leverage = State()
 
 
-def format_strategy_config(symbol: str, config: StrategyConfig) -> str:
+def format_strategy_config(symbol: str, config: StrategyConfig, balance_usdt: float = 0) -> str:
     """Format strategy configuration for display"""
     risk_percent = config.risk * 100
     tp_percent = config.tp_percent * 100
     sl_percent = config.sl_percent * 100
 
+    risk_usdt = balance_usdt * config.risk
+    risk_display = f"{risk_percent:.1f}%"
+    if balance_usdt > 0:
+        risk_display += f" ({risk_usdt:.2f} USDT)"
+
     msg = f"<b>⚙️ Strategy: {symbol}</b>\n\n"
-    msg += f"  Risk: {risk_percent:.1f}%\n"
+    msg += f"  Risk: {risk_display}\n"
     msg += f"  TP: {tp_percent:.1f}% (x{config.tp_count})\n"
     if config.trailing_stop:
         msg += "  SL: Trailing Stop\n"
@@ -131,11 +146,15 @@ async def cmd_strategy(message: Message, command: CommandObject, state: FSMConte
             )
             return
 
+        balance_usdt = await get_balance_usdt()
         msg = "<b>📋 Strategy Configurations</b>\n\n"
-        print("Configs:", configs)
         for symbol, config in configs.items():
+            risk_usdt = balance_usdt * config.risk
+            risk_line = f"{config.risk * 100:.1f}%"
+            if balance_usdt > 0:
+                risk_line += f" ({risk_usdt:.2f} USDT)"
             msg += f"<code>{symbol}</code>:\n"
-            msg += f"  Risk: {config.risk * 100:.1f}% | TP: {config.tp_percent * 100:.1f}%\n"
+            msg += f"  Risk: {risk_line} | TP: {config.tp_percent * 100:.1f}%\n"
             msg += f"  SL: {config.sl_percent * 100:.1f}% | Leverage: {config.leverage}x\n\n"
 
         await message.answer(msg)
@@ -146,9 +165,10 @@ async def cmd_strategy(message: Message, command: CommandObject, state: FSMConte
     if len(args) == 1:
         # Show config for symbol
         config = get_strategy_config(symbol)
+        balance_usdt = await get_balance_usdt()
         # Show if config is symbol-specific or global default
         is_default = symbol not in strategy_config_store.get_all_configs()
-        msg = format_strategy_config(symbol, config)
+        msg = format_strategy_config(symbol, config, balance_usdt)
         if is_default:
             msg += "\n\n📝 Use /global_strategy to set defaults for all pairs"
         await message.answer(
@@ -170,9 +190,15 @@ async def cmd_strategy(message: Message, command: CommandObject, state: FSMConte
             config = strategy_config_store.update_sl(symbol, sl, config.trailing_stop)
             config = strategy_config_store.update_leverage(symbol, leverage)
 
+            balance_usdt = await get_balance_usdt()
+            risk_usdt = balance_usdt * (risk / 100)
+            risk_line = f"{risk:.1f}%"
+            if balance_usdt > 0:
+                risk_line += f" ({risk_usdt:.2f} USDT)"
+
             await message.answer(
                 f"✅ Strategy configured for {symbol}:\n"
-                f"  Risk: {risk * 100:.1f}%\n"
+                f"  Risk: {risk_line}\n"
                 f"  TP: {tp * 100:.1f}%\n"
                 f"  SL: {sl * 100:.1f}%\n"
                 f"  Leverage: {leverage}x",
@@ -360,9 +386,14 @@ async def _handle_float_setting(
             await state.clear()
 
             config = strategy_config_store.get_default_config()
+            balance_usdt = await get_balance_usdt()
+            risk_usdt = balance_usdt * config.risk
+            risk_line = f"{config.risk * 100:.1f}%"
+            if balance_usdt > 0:
+                risk_line += f" ({risk_usdt:.2f} USDT)"
             await message.answer(
                 f"<b>🌍 Global Strategy Configuration</b>\n\n"
-                f"  Risk: {config.risk * 100:.1f}%\n"
+                f"  Risk: {risk_line}\n"
                 f"  TP: {config.tp_percent * 100:.1f}% (x{config.tp_count})\n"
                 f"  SL: {config.sl_percent * 100:.1f}%\n"
                 f"  Leverage: {config.leverage}x"
@@ -388,8 +419,9 @@ async def _handle_float_setting(
 
         # Show updated config
         config = get_strategy_config(symbol)
+        balance_usdt = await get_balance_usdt()
         await message.answer(
-            format_strategy_config(symbol, config),
+            format_strategy_config(symbol, config, balance_usdt),
             reply_markup=create_strategy_keyboard(symbol).as_markup()
         )
 
@@ -425,9 +457,14 @@ async def _handle_int_setting(
             await state.clear()
 
             config = strategy_config_store.get_default_config()
+            balance_usdt = await get_balance_usdt()
+            risk_usdt = balance_usdt * config.risk
+            risk_line = f"{config.risk * 100:.1f}%"
+            if balance_usdt > 0:
+                risk_line += f" ({risk_usdt:.2f} USDT)"
             await message.answer(
                 f"<b>🌍 Global Strategy Configuration</b>\n\n"
-                f"  Risk: {config.risk * 100:.1f}%\n"
+                f"  Risk: {risk_line}\n"
                 f"  TP: {config.tp_percent * 100:.1f}% (x{config.tp_count})\n"
                 f"  SL: {config.sl_percent * 100:.1f}%\n"
                 f"  Leverage: {config.leverage}x"
@@ -447,8 +484,9 @@ async def _handle_int_setting(
 
         # Show updated config
         config = get_strategy_config(symbol)
+        balance_usdt = await get_balance_usdt()
         await message.answer(
-            format_strategy_config(symbol, config),
+            format_strategy_config(symbol, config, balance_usdt),
             reply_markup=create_strategy_keyboard(symbol).as_markup()
         )
 
@@ -469,8 +507,13 @@ async def cmd_global_strategy(message: Message, command: CommandObject, state: F
     if not args:
         # Show current global config
         config = strategy_config_store.get_default_config()
+        balance_usdt = await get_balance_usdt()
+        risk_usdt = balance_usdt * config.risk
+        risk_line = f"{config.risk * 100:.1f}%"
+        if balance_usdt > 0:
+            risk_line += f" ({risk_usdt:.2f} USDT)"
         msg = "<b>🌍 Global Strategy Configuration</b>\n\n"
-        msg += f"  Risk: {config.risk * 100:.1f}%\n"
+        msg += f"  Risk: {risk_line}\n"
         msg += f"  TP: {config.tp_percent * 100:.1f}% (x{config.tp_count})\n"
         msg += f"  SL: {config.sl_percent * 100:.1f}%\n"
         msg += f"  Leverage: {config.leverage}x"
@@ -508,9 +551,15 @@ async def cmd_global_strategy(message: Message, command: CommandObject, state: F
                 leverage=leverage
             )
 
+            balance_usdt = await get_balance_usdt()
+            risk_usdt = balance_usdt * (risk / 100)
+            risk_line = f"{risk:.1f}%"
+            if balance_usdt > 0:
+                risk_line += f" ({risk_usdt:.2f} USDT)"
+
             await message.answer(
                 f"✅ Global strategy configured:\n"
-                f"  Risk: {risk:.1f}%\n"
+                f"  Risk: {risk_line}\n"
                 f"  TP: {tp:.1f}%\n"
                 f"  SL: {sl:.1f}%\n"
                 f"  Leverage: {leverage}x"

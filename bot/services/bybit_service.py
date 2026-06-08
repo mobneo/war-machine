@@ -12,6 +12,7 @@ class BybitService:
             'apiKey': settings.bybit_api_key or "",
             'secret': settings.bybit_secret_key or "",
         })
+
         # Load markets to validate connection
         self.exchange.load_markets()
 

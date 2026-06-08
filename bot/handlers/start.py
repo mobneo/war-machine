@@ -111,7 +111,7 @@ async def cmd_start(message: Message):
         "Available commands:\n"
         "/balance - show balance\n"
         "/config - show balance, PnL & ROE\n"
-        "/positions - open positions\n"
+        "/positions - show open positions\n"
         # "/positions long - show only long positions\n"
         # "/positions short - show only short positions\n"
         # "/positions profit - show only profitable positions\n"
